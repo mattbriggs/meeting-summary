@@ -28,3 +28,12 @@ class DBModel():
         except sqlite3.Error as error:
             print("Error while executing sqlite script", error)
         return dbpath
+
+def main():
+    ''' '''
+    dbpath = "wordsample/summary.db"
+    db  = DB.DBModel()
+    db.create(dbpath, 'meetingsummary.sql')
+
+if __name__ == "__main__":
+    main()

@@ -1,5 +1,18 @@
+CREATE TABLE meeting (
+    ID TEXT PRIMARY KEY,
+    Title Text,
+    MeetingDate Text,
+    Attendees Text,
+    Agenda Text,
+    ActionItems Text,
+    Notes Text,
+    Transcript Text,
+    Recording Text
+)
+
 CREATE TABLE line (
     ID TEXT PRIMARY KEY,
+    Meeting Text,
     TStamp TEXT,
     Speaker TEXT,
     Verbatim TEXT,
@@ -11,6 +24,7 @@ CREATE TABLE line (
 
 CREATE TABLE summary (
     Speaker TEXT PRIMARY KEY,
+    Meeting Text,
     ShortSummary TEXT,
     LongSummary TEXT,
     Allsaid TEXT
@@ -48,5 +62,3 @@ CREATE VIEW KWIC AS
     line.Sentiment 
     FROM occurance 
     INNER JOIN line ON line.ID=occurance.Line_ID;
-
-

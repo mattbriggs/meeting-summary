@@ -1,10 +1,32 @@
 import docx
 import sqlite3
 import html
+import openai
+import uuid
+import pandas as pd
 
 import sentiment as SE
 import createdb as DB
 import summarize as SU
+import mod_utilities as MU
+import terms as TE
+
+openai.api_key = MU.get_textfromfile('marmot.txt')
+
+
+def create_tight_summary(prompt):
+  '''Use the OpenAI endpoint to create a summary.'''
+
+  response = openai.Completion.create(
+      model="text-davinci-003",
+      prompt="Summarize this for a fifth-grade student: {}".format(prompt),
+      temperature=0.7,
+      max_tokens=2000,
+      top_p=1.0,
+      frequency_penalty=0.0,
+      presence_penalty=0.0
+      ) 
+  return response["choices"][0]["text"]
 
 
 def load_table_line(row, dbpath):
@@ -67,14 +89,14 @@ def get_verbatims(dbpath):
     for i in speaker_list:
         for j in verbatims:
             if j[0] == i[0]:
-                extract = str(j[1])
+                extract = str(j[1]) + " "
                 verbatims_speaks[i[0]] += extract
     
     # get long summary of verbatims
     for i in speaker_list:
         summary = SU.summarize_text(html.unescape(verbatims_speaks[i[0]]))
         summaries[i[0]] = summary
-        short = SU.summarize_text(html.unescape(verbatims_speaks[i[0]]), 400)
+        short = create_tight_summary(summary).strip()
         shorts[i[0]] = short
     
     # get short summary and store all summary fields
@@ -87,9 +109,89 @@ def get_verbatims(dbpath):
         conn.commit()
         cur.close()
 
-dbpath = "wordsample/summary.db"
+def main():
+    ''' '''
+    dbpath = "wordsample/summary.db"
+    table_transcript('wordsample/2022.11.28.MartinandPryianka.docx', dbpath)
+    get_verbatims(dbpath)
 
-db  = DB.DBModel()
-db.create(dbpath, 'meetingsummary.sql')
-table_transcript('wordsample/2022.11.28.MartinandPryianka.docx', dbpath)
-get_verbatims(dbpath)
+    # Extract entities from the verbatims.
+
+    database = "wordsample/summary.db"
+    conn = sqlite3.connect(database)
+    cur = conn.cursor()
+    speaker_list = list(cur.execute('SELECT * From speaker_list;'))
+    cur.close()
+    speakers = []
+    for i in speaker_list:
+        speakers.append(i[0])
+    for s in speakers:
+        conn = sqlite3.connect(database)
+        cur = conn.cursor()
+        summaries = pd.read_sql("SELECT * from summary Where Speaker='{}'".format(s), con=conn)
+        conn.close()
+        fulltext = html.unescape(summaries["Allsaid"].values[0])
+        entities = TE.get_top_fifty(fulltext, "{}".format(s))
+        keys = entities.keys()
+        for k in keys:
+            entity_item = entities[k]["keyword"].lower()
+            alternate = ""
+            if entity_item[-1:] == "s":
+                alternate = entity_item
+                entity_item = entity_item[:-1]
+            try:
+                conn = sqlite3.connect(database)
+                cur = conn.cursor()
+                cur.execute('INSERT INTO entity VALUES ("{}", "{}");'.format(entity_item, alternate))
+                conn.commit()
+                cur.close()
+            except Exception as e:
+                print(e)
+
+    # match entities to lines create the KWIC
+
+    conn = sqlite3.connect(database)
+    cur = conn.cursor()
+    entity_list = list(cur.execute('SELECT Entity From entity;'))
+    lines = list(cur.execute('SELECT ID, Verbatim From line;'))
+    cur.close()
+    conn.close()
+
+    for i in entity_list:
+        for j in lines:
+            line = j[1].lower()
+            if line.find(i[0]) > 0:
+                conn = sqlite3.connect(database)
+                cur = conn.cursor()
+                cur.execute('INSERT INTO occurance VALUES ("{}", "{}", "{}");'.format(str(uuid.uuid4()), i[0], j[0]))
+                conn.commit()
+                cur.close()
+    
+    # Rank the keywords
+
+    conn = sqlite3.connect(database)
+    cur = conn.cursor()
+    keyword_return = list(cur.execute('SELECT Distinct Entity From KWIC;'))
+    cur.close()
+    conn.close()
+
+    keywords = []
+    for i in keyword_return:
+        keywords.append(i[0])
+
+    for i in keywords:
+        conn = sqlite3.connect(database)
+        cur = conn.cursor()
+        rank = list(cur.execute('SELECT COUNT (Entity) FROM KWIC WHERE Entity="{}";'.format(i)))
+        cur.close()
+        conn.close()
+
+        conn = sqlite3.connect(database)
+        cur = conn.cursor()
+        cur.execute('INSERT INTO ranks VALUES ("{}", "{}");'.format(i, rank[0][0]))
+        conn.commit()
+        cur.close()
+
+
+if __name__ == "__main__":
+    main()
