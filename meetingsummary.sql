@@ -8,7 +8,7 @@ CREATE TABLE meeting (
     Notes Text,
     Transcript Text,
     Recording Text
-)
+);
 
 CREATE TABLE line (
     ID TEXT PRIMARY KEY,
@@ -19,7 +19,8 @@ CREATE TABLE line (
     SENT_POS REAL,
     SENT_NEU REAL,
     SENT_NEG REAL,
-    Sentiment REAL
+    Sentiment REAL,
+    FOREIGN KEY(Meeting) REFERENCES meeting(ID)
 );
 
 CREATE TABLE summary (
@@ -27,7 +28,8 @@ CREATE TABLE summary (
     Meeting Text,
     ShortSummary TEXT,
     LongSummary TEXT,
-    Allsaid TEXT
+    Allsaid TEXT,
+    FOREIGN KEY(Meeting) REFERENCES meeting(ID)
 );
 
 CREATE TABLE entity (

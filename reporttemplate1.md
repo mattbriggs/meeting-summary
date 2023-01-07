@@ -13,7 +13,11 @@ ms.date: {{date}}
 
 ## Meeting
 
-{{meeting_summary}}
+{{date}}
+
+{{meeting_keywords}}
+
+{{meeting_short_summary}}
 
 ## Attendees
 
@@ -27,7 +31,7 @@ ms.date: {{date}}
 
 {{meeting_action_items}}
 
-## Meeting
+## Sentiment
 
 The following graph shows the conversation sentiment over the time of the meeting from a positive sentiment (1.0) to a negative sentiment (-1.0).
 
@@ -35,7 +39,7 @@ The following graph shows the conversation sentiment over the time of the meetin
 
 ### Summaries
 
-{{speaker-summaries}}
+{{speaker_summaries}}
 
 ## Next steps
 

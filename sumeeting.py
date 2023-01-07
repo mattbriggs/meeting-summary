@@ -1,32 +1,41 @@
 import docx
+import sys
 import sqlite3
 import html
+import yaml
 import openai
 import uuid
 import pandas as pd
 
 import sentiment as SE
-import createdb as DB
+import meetingsummarydb as DB
 import summarize as SU
 import mod_utilities as MU
 import terms as TE
+import meetingreport as MR
 
 openai.api_key = MU.get_textfromfile('marmot.txt')
 
 
 def create_tight_summary(prompt):
-  '''Use the OpenAI endpoint to create a summary.'''
+    '''Use the OpenAI endpoint to create a summary.'''
 
-  response = openai.Completion.create(
-      model="text-davinci-003",
-      prompt="Summarize this for a fifth-grade student: {}".format(prompt),
-      temperature=0.7,
-      max_tokens=2000,
-      top_p=1.0,
-      frequency_penalty=0.0,
-      presence_penalty=0.0
-      ) 
-  return response["choices"][0]["text"]
+    try:
+
+        response = openai.Completion.create(
+            model="text-davinci-003",
+            prompt="Summarize this for a fifth-grade student: {}".format(prompt),
+            temperature=0.7,
+            max_tokens=2000,
+            top_p=1.0,
+            frequency_penalty=0.0,
+            presence_penalty=0.0
+            ) 
+        return response["choices"][0]["text"]
+
+    except Exception as e:
+        print(e)
+        return "Error researching server."
 
 
 def load_table_line(row, dbpath):
@@ -61,6 +70,7 @@ def table_transcript(filein, dbpath, size=0):
                 sent = SE.get_sentiment(i.text)
                 row = [indx, parsed[0], parsed[1] + " " + parsed[2], esctext, sent['neg'], sent['neu'], sent['pos'], sent['compound']]
                 load_table_line(row, dbpath)
+
 
 def get_verbatims(dbpath):
     '''With a loaded DB, collect varbitms.'''
@@ -109,16 +119,48 @@ def get_verbatims(dbpath):
         conn.commit()
         cur.close()
 
-def main():
-    ''' '''
-    dbpath = "wordsample/summary.db"
-    table_transcript('wordsample/2022.11.28.MartinandPryianka.docx', dbpath)
+def create_and_load_db(config):
+
+    dbpath = config["reportpath"] + config["stem"] + ".db"
+    DB.create_db(dbpath)
+    table_transcript(config["transcript"], dbpath)
     get_verbatims(dbpath)
+
+    # Load meeting data
+
+    conn = sqlite3.connect(dbpath)
+    cur = conn.cursor()
+    m_id = config["stem"]
+    m_title  = config["title"]
+    m_meetingdate  = config["date"]
+    m_attendees  = config["attendees"]
+    m_agenda = config["agenda"]
+    m_actionitems  = config["actions"]
+    m_notes  = config["notes"]
+    m_transcript = config["transcript"]
+    m_recording  = config["recording"]
+
+    try:
+        conn = sqlite3.connect(dbpath)
+        cur = conn.cursor()
+        cur.execute('INSERT INTO meeting (ID, Title, MeetingDate, Attendees, \
+            Agenda, ActionItems, Notes, Transcript, Recording) VALUES \
+            (?, ?, ?, ?, ?, ?, ?, ?, ?)', ( m_id, m_title, \
+            m_meetingdate, m_attendees, m_agenda, m_actionitems, \
+            m_notes, m_transcript, m_recording) )
+        conn.commit()
+        cur.close()
+    except Exception as e:
+        print(e)
+
+        # cur.execute('INSERT INTO line (ID, TStamp, Speaker, \
+        #     Verbatim, SENT_POS, SENT_NEU, SENT_NEG, Sentiment) VALUES \
+        #     ( ?, ?, ?, ?, ?, ?, ?, ?)', \
+        #     ( row[0], row[1],  row[2],  row[3],  row[4],  row[5],  row[6],  row[7]) )
 
     # Extract entities from the verbatims.
 
-    database = "wordsample/summary.db"
-    conn = sqlite3.connect(database)
+    conn = sqlite3.connect(dbpath)
     cur = conn.cursor()
     speaker_list = list(cur.execute('SELECT * From speaker_list;'))
     cur.close()
@@ -126,7 +168,7 @@ def main():
     for i in speaker_list:
         speakers.append(i[0])
     for s in speakers:
-        conn = sqlite3.connect(database)
+        conn = sqlite3.connect(dbpath)
         cur = conn.cursor()
         summaries = pd.read_sql("SELECT * from summary Where Speaker='{}'".format(s), con=conn)
         conn.close()
@@ -140,7 +182,7 @@ def main():
                 alternate = entity_item
                 entity_item = entity_item[:-1]
             try:
-                conn = sqlite3.connect(database)
+                conn = sqlite3.connect(dbpath)
                 cur = conn.cursor()
                 cur.execute('INSERT INTO entity VALUES ("{}", "{}");'.format(entity_item, alternate))
                 conn.commit()
@@ -150,7 +192,7 @@ def main():
 
     # match entities to lines create the KWIC
 
-    conn = sqlite3.connect(database)
+    conn = sqlite3.connect(dbpath)
     cur = conn.cursor()
     entity_list = list(cur.execute('SELECT Entity From entity;'))
     lines = list(cur.execute('SELECT ID, Verbatim From line;'))
@@ -161,7 +203,7 @@ def main():
         for j in lines:
             line = j[1].lower()
             if line.find(i[0]) > 0:
-                conn = sqlite3.connect(database)
+                conn = sqlite3.connect(dbpath)
                 cur = conn.cursor()
                 cur.execute('INSERT INTO occurance VALUES ("{}", "{}", "{}");'.format(str(uuid.uuid4()), i[0], j[0]))
                 conn.commit()
@@ -169,7 +211,7 @@ def main():
     
     # Rank the keywords
 
-    conn = sqlite3.connect(database)
+    conn = sqlite3.connect(dbpath)
     cur = conn.cursor()
     keyword_return = list(cur.execute('SELECT Distinct Entity From KWIC;'))
     cur.close()
@@ -180,18 +222,48 @@ def main():
         keywords.append(i[0])
 
     for i in keywords:
-        conn = sqlite3.connect(database)
+        conn = sqlite3.connect(dbpath)
         cur = conn.cursor()
         rank = list(cur.execute('SELECT COUNT (Entity) FROM KWIC WHERE Entity="{}";'.format(i)))
         cur.close()
         conn.close()
 
-        conn = sqlite3.connect(database)
-        cur = conn.cursor()
-        cur.execute('INSERT INTO ranks VALUES ("{}", "{}");'.format(i, rank[0][0]))
-        conn.commit()
-        cur.close()
+        try:
+            conn = sqlite3.connect(dbpath)
+            cur = conn.cursor()
+            cur.execute('INSERT INTO ranks VALUES ("{}", "{}");'.format(i, rank[0][0]))
+            conn.commit()
+            cur.close()
+        except Exception as e:
+            print(e)
+    
+    return dbpath
 
+def main():
+    '''Useage: python ./sumeeting.py "<pathtoconfig>" '''
+
+    # load config
+
+    listofitems = list(sys.argv)
+    configpath = listofitems[1]
+
+    try:
+        with open (configpath, "r") as stream:
+            config = yaml.load(stream, Loader=yaml.CLoader) 
+    except Exception as e:
+        print("Please provide a path to a job file (meeting.yml).")
+        print(e)
+        exit()
+
+    # Create and load DB
+    dbpath = create_and_load_db(config)
+
+    # get template and generate markdown report
+    
+    template_string = MU.get_textfromfile("reporttemplate1.md")
+    MR.create_report(template_string,config["reportpath"] , dbpath, config["stem"])
+
+    print("{} - Done".format(config["title"]))
 
 if __name__ == "__main__":
     main()

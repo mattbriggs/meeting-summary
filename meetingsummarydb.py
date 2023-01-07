@@ -29,11 +29,14 @@ class DBModel():
             print("Error while executing sqlite script", error)
         return dbpath
 
-def main():
-    ''' '''
-    dbpath = "wordsample/summary.db"
-    db  = DB.DBModel()
+def create_db(dbpath):
+    db  = DBModel()
     db.create(dbpath, 'meetingsummary.sql')
+
+
+def main():
+    '''This is script to create the db.'''
+
 
 if __name__ == "__main__":
     main()
