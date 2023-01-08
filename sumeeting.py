@@ -59,17 +59,22 @@ def table_transcript(filein, dbpath, size=0):
     doc = docx.Document(filein)
     if size == 0:
         size = len(doc.paragraphs)
+    
+    parsed = ""
 
     for indx, i in enumerate(doc.paragraphs):
         if indx > 3 and indx < size:
-            if i.text.find("Speaker ") > 0:
-                parsed = i.text.split(" ")
-            else:
-                print("Line: {}".format(size-indx))
-                esctext = html.escape(i.text)
-                sent = SE.get_sentiment(i.text)
-                row = [indx, parsed[0], parsed[1] + " " + parsed[2], esctext, sent['neg'], sent['neu'], sent['pos'], sent['compound']]
-                load_table_line(row, dbpath)
+            try:
+                if i.text.find("Speaker ") > 0:
+                    parsed = i.text.split(" ")
+                else:
+                    print("Line: {}".format(size-indx))
+                    esctext = html.escape(i.text)
+                    sent = SE.get_sentiment(i.text)
+                    row = [indx, parsed[0], parsed[1] + " " + parsed[2], esctext, sent['neg'], sent['neu'], sent['pos'], sent['compound']]
+                    load_table_line(row, dbpath)
+            except Exception as e:
+                print(e)
 
 
 def get_verbatims(dbpath):
