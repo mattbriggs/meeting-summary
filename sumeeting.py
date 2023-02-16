@@ -38,6 +38,20 @@ def create_tight_summary(prompt):
         return "Error researching server."
 
 
+def add_zero(instring):
+    if len(instring) == 1:
+        outstring = "0" + instring
+    else:
+        outstring = instring
+    return outstring
+
+
+def clean_timestamp(intimestring):
+    slots = intimestring.split(":")
+    newstring = add_zero(slots[0]) + ":" + add_zero(slots[1]) + ":" +  add_zero(slots[2])
+    return newstring
+
+
 def load_table_line(row, dbpath):
     '''Load the document table with a processDocument object.'''
     try:
@@ -53,8 +67,8 @@ def load_table_line(row, dbpath):
         print("An error occurred in loadDocument/document {}".format(e))
 
 
-def table_transcript(filein, dbpath, size=0):
-    '''With a filepath to a transcript, and an optional line index, return a table.'''
+def table_transcript_backtrack(filein, dbpath, size=0):
+    '''With a filepath to a backtrack transcript, and an optional line index, return a table.'''
 
     doc = docx.Document(filein)
     if size == 0:
@@ -73,6 +87,31 @@ def table_transcript(filein, dbpath, size=0):
                     sent = SE.get_sentiment(i.text)
                     row = [indx, parsed[0], parsed[1] + " " + parsed[2], esctext, sent['neg'], sent['neu'], sent['pos'], sent['compound']]
                     load_table_line(row, dbpath)
+            except Exception as e:
+                print(e)
+
+
+def table_transcript_teams(filein, dbpath, size=0):
+    '''With a filepath to a Teams transcript, and an optional line index, return a table.'''
+
+    doc = docx.Document(filein)
+    if size == 0:
+        size = len(doc.paragraphs)
+    
+    parsed = ""
+
+    for indx, i in enumerate(doc.paragraphs):
+        if indx > 0 and indx < size:
+            try:
+                print("Line: {}".format(size-indx))
+                entry = i.text.split("\n")
+                tempstamp = entry[0].split("-->")[1].split(".")[0]
+                timestamp = clean_timestamp(tempstamp.strip())
+                speaker = entry[1]
+                esctext = html.escape(entry[2])
+                sent = SE.get_sentiment(esctext)
+                row = [indx, timestamp, speaker, esctext, sent['neg'], sent['neu'], sent['pos'], sent['compound']]
+                load_table_line(row, dbpath)
             except Exception as e:
                 print(e)
 
@@ -128,7 +167,13 @@ def create_and_load_db(config):
 
     dbpath = config["reportpath"] + config["stem"] + ".db"
     DB.create_db(dbpath)
-    table_transcript(config["transcript"], dbpath)
+    if config["source"] == "backtrack":
+        table_transcript_backtrack(config["transcript"], dbpath)
+    elif config["source"] == "teams":
+        table_transcript_teams(config["transcript"], dbpath)
+    else:
+        print("Need to set the source attribute.")
+        exit
     get_verbatims(dbpath)
 
     # Load meeting data
@@ -157,11 +202,6 @@ def create_and_load_db(config):
         cur.close()
     except Exception as e:
         print(e)
-
-        # cur.execute('INSERT INTO line (ID, TStamp, Speaker, \
-        #     Verbatim, SENT_POS, SENT_NEU, SENT_NEG, Sentiment) VALUES \
-        #     ( ?, ?, ?, ?, ?, ?, ?, ?)', \
-        #     ( row[0], row[1],  row[2],  row[3],  row[4],  row[5],  row[6],  row[7]) )
 
     # Extract entities from the verbatims.
 
@@ -266,7 +306,7 @@ def main():
     # get template and generate markdown report
     
     template_string = MU.get_textfromfile("reporttemplate1.md")
-    MR.create_report(template_string,config["reportpath"] , dbpath, config["stem"])
+    MR.create_report(template_string, config["reportpath"], dbpath, config["stem"])
 
     print("{} - Done".format(config["title"]))
 
