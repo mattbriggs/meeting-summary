@@ -148,7 +148,7 @@ def create_report_raw(dbpath, rootpath, stem):
         cur.close()
         conn.close()
 
-        table = "| Entity | TStamp | Speaker | Verbatim | Sentiment |\n| --- | --- | --- | --- | --- |\n"
+        table = "\n\n| Entity | TStamp | Speaker | Verbatim | Sentiment |\n| --- | --- | --- | --- | --- |\n"
         for j in kwic:
             table += "| {} | {} | {} | {} | {} |\n".format(j[0], j[1], j[2], html.unescape(j[3]), j[4])
 
@@ -160,8 +160,8 @@ def create_report_raw(dbpath, rootpath, stem):
     meeting_short_summary_text = ""
 
     for i in speaker_list:
-        meeting_short_summary_text += "### {}\n{}\n".format(i, summaries[i]["short"])
-        speaker_summaries_text += "### {}\n#### Summary\n{}\n#### Keywords\n{}\n".format(i, summaries[i]["long"], tables[i])
+        meeting_short_summary_text += "\n\n### {}\n{}\n".format(i, summaries[i]["short"])
+        speaker_summaries_text += "\n### {}\n\n#### Summary\n{}\n\n#### Keywords\n{}\n".format(i, summaries[i]["long"], tables[i])
 
     meeting_data["meeting_short_summary"] = meeting_short_summary_text
     meeting_data["speaker_summaries"] = speaker_summaries_text
