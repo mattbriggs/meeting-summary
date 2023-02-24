@@ -3,6 +3,7 @@ import sys
 import sqlite3
 import html
 import yaml
+import re
 import openai
 import uuid
 import pandas as pd
@@ -67,8 +68,8 @@ def load_table_line(row, dbpath):
         print("An error occurred in loadDocument/document {}".format(e))
 
 
-def table_transcript_backtrack(filein, dbpath, size=0):
-    '''With a filepath to a backtrack transcript, and an optional line index, return a table.'''
+def table_transcript_word(filein, dbpath, size=0):
+    '''With a filepath to a MS Word transcript, and an optional line index, return a table.'''
 
     doc = docx.Document(filein)
     if size == 0:
@@ -79,7 +80,7 @@ def table_transcript_backtrack(filein, dbpath, size=0):
     for indx, i in enumerate(doc.paragraphs):
         if indx > 3 and indx < size:
             try:
-                if i.text.find("Speaker ") > 0:
+                if re.search("[0-9][0-9]:[0-9][0-9]:[0-9][0-9]", i.text):
                     parsed = i.text.split(" ")
                 else:
                     print("Line: {}".format(size-indx))
@@ -167,8 +168,8 @@ def create_and_load_db(config):
 
     dbpath = config["reportpath"] + config["stem"] + ".db"
     DB.create_db(dbpath)
-    if config["source"] == "backtrack":
-        table_transcript_backtrack(config["transcript"], dbpath)
+    if config["source"] == "word":
+        table_transcript_word(config["transcript"], dbpath)
     elif config["source"] == "teams":
         table_transcript_teams(config["transcript"], dbpath)
     else:

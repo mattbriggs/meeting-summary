@@ -12,6 +12,6 @@ actions: |
 notes: |
   Notes
 transcript: <double \\ path to the M365 transcript>
-source: backtrack | teams
+source: word | teams
 recording: <filename of the audio for reference>
 reportpath: <double \\ path to the output>
